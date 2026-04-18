@@ -1,43 +1,44 @@
 //client
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <sched.h>
-#include <string.h>
-#include <time.h>
-#include <stdint.h>
+#include <stdio.h> //library for basic input output print statements
+#include <stdlib.h> //library memory allocation 
+#include <unistd.h>//library for declar
+#include <fcntl.h>//file control
+#include <pthread.h>//posix thread operation priority and scheduling
+#include <sched.h>//Scheduling policies
+#include <string.h>//string functions
+#include <time.h>//for time 
+#include <stdint.h>//uint8_t
 
-#include <sys/neutrino.h>
-#include <sys/netmgr.h>
-#include <sys/ioctl.h>
+#include <sys/neutrino.h>//neutrino function call
+#include <sys/netmgr.h>//Network manager
+#include <sys/ioctl.h>//Device control interface
 
-#include <hw/i2c.h>
-#include "common.h"
+#include <hw/i2c.h>//I2C communication structures
 
-sensor_data_t shared_data;
-pthread_mutex_t data_mutex = PTHREAD_MUTEX_INITIALIZER;
+#include "common.h"//custom header file
 
-int coid;
-FILE *serial_port;
+sensor_data_t shared_data;//holding all sensor values
+pthread_mutex_t data_mutex = PTHREAD_MUTEX_INITIALIZER;//Mutex initialisation
 
-#define I2C_DEV "/dev/i2c1"
+int coid;//connection id
+FILE *serial_port;//File pointer for UART/serial communication output
+// Path to I2C device driver
+#define I2C_DEV "/dev/i2c1" 
+//gpio path
 #define GPIO_DEV "/dev/gpio"
-
 // ---------------- I2C HELPERS ----------------
 
 int i2c_read(int fd, uint8_t slave_addr, uint8_t reg, uint8_t *buf, int len)
 {
-    i2c_sendrecv_t msg;
+    i2c_sendrecv_t msg;//DCMD_I2C_SENDRECV qnx call for i2c
 
-    msg.slave.addr = slave_addr;
-    msg.slave.fmt  = I2C_ADDRFMT_7BIT;
-    msg.send_len   = 1;
-    msg.send_buf   = &reg;
-    msg.recv_len   = len;
-    msg.recv_buf   = buf;
-    msg.stop       = 1;
+    msg.slave.addr = slave_addr;// Set I2C slave address
+    msg.slave.fmt  = I2C_ADDRFMT_7BIT;// Use 7-bit addressing
+    msg.send_len   = 1;//Send 1 byte (register address)
+    msg.send_buf   = &reg;// Pointer to register address
+    msg.recv_len   = len;// Number of bytes to read
+    msg.recv_buf   = buf;// Buffer to store received data
+    msg.stop       = 1;// Generate STOP condition
 
     return devctl(fd, DCMD_I2C_SENDRECV, &msg, sizeof(msg), NULL);
 }
@@ -46,19 +47,19 @@ int i2c_read(int fd, uint8_t slave_addr, uint8_t reg, uint8_t *buf, int len)
 
 void read_mpu6050(float *ax, float *ay, float *az)
 {
-    int fd = open(I2C_DEV, O_RDWR);
-    if(fd < 0) return;
+    int fd = open(I2C_DEV, O_RDWR);// Open I2C device
+    if(fd < 0) return;// Exit if failed
 
     uint8_t data[6];
 
     if(i2c_read(fd, 0x68, 0x3B, data, 6) == EOK)
     {
-        int16_t raw_x = (data[0] << 8) | data[1];
+        int16_t raw_x = (data[0] << 8) | data[1];//store data intoreistre convert 3bits to one
         int16_t raw_y = (data[2] << 8) | data[3];
         int16_t raw_z = (data[4] << 8) | data[5];
 
         *ax = raw_x / 16384.0;
-        *ay = raw_y / 16384.0;
+        *ay = raw_y / 16384.0; //covertion raw to read
         *az = raw_z / 16384.0;
     }
 
@@ -69,7 +70,7 @@ void read_mpu6050(float *ax, float *ay, float *az)
 
 float read_bmp280()
 {
-    int fd = open(I2C_DEV, O_RDWR);
+    int fd = open(I2C_DEV, O_RDWR);//file access read write
     if(fd < 0) return 0;
 
     uint8_t data[3];
@@ -77,8 +78,8 @@ float read_bmp280()
 
     if(i2c_read(fd, 0x76, 0xF7, data, 3) == EOK)
     {
-        int raw = (data[0] << 12) | (data[1] << 4) | (data[2] >> 4);
-        pressure = raw / 256.0;
+        int raw = (data[0] << 12) | (data[1] << 4) | (data[2] >> 4); // bmp280 read from reg convert to single raw
+        pressure = raw / 256.0; raw to read
     }
 
     close(fd);
@@ -92,7 +93,7 @@ int bcd_to_dec(uint8_t val)
     return ((val >> 4) * 10) + (val & 0x0F);
 }
 
-void read_ds3231(char *buffer)
+void read_ds3231(char *buffer) function fro realtime clock
 {
     int fd = open(I2C_DEV, O_RDWR);
     if(fd < 0) return;
@@ -113,7 +114,7 @@ void read_ds3231(char *buffer)
 
 // ---------------- VIBRATION GPIO ----------------
 
-int read_vibration_gpio()
+int read_vibration_gpio() c//code fro rtc
 {
     int fd = open(GPIO_DEV, O_RDONLY);
     if(fd < 0) return 0;
@@ -191,7 +192,7 @@ int main()
         perror("name_open");
         return -1;
     }
-
+//pthread creation and prioity setting
     pthread_create(&t1, NULL, mpu_thread, NULL);
     pthread_create(&t2, NULL, bmp_thread, NULL);
     pthread_create(&t3, NULL, vibration_thread, NULL);
